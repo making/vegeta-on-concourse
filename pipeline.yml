@@ -1,130 +1,202 @@
 resources:
-- name: 10s
+- name: timer
   type: time
   source:
     interval: 10s
 jobs:
-- name: prepare
+- name: init-bucket
   plan:
-  - get: 10s
-- name: perf-test1
-  plan:
-  - get: 10s
-    passed:
-    - prepare
-    trigger: true
-  - task: run-vegeta
-    params: &PERF_PARAMS
-      URL: https://demo-micrometer.cfapps.io/hello
-    config: &PERF_TASK
+  - task: mb
+    params:
+      <<: *S3_PARAMS
+    config:
       platform: linux
       image_resource:
         type: docker-image
         source:
-          repository: oba11/vegeta
+          repository: mesosphere/aws-cli
       run:
         path: sh
         args: 
         - -c
         - |
           set -e
-          echo "GET ${URL}" | vegeta attack -duration=10s | tee results.bin | vegeta report
+          aws --endpoint-url ${ENDPOINT_URL} s3 mb s3://${S3_BUCKET} 
+- name: prepare
+  plan:
+  - get: timer
+- name: perf-test1
+  plan:
+  - get: timer
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+      JOB_ID: 1
+    config: &PERF_TASK
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: oba11/vegeta
+      inputs:
+      - name: timer
+      outputs:
+      - name: report
+      run:
+        path: sh
+        args: 
+        - -c
+        - |
+          set -e
+          env
+          VERSION=`md5sum timer/input | awk '{print $1}'`
+          mkdir ${VERSION}
+          echo "GET ${URL}" | vegeta attack -duration=3s > ${VERSION}/result-${JOB_ID}.bin
+          mv ${VERSION} report/
+  - task: upload-report
+    params:
+      <<: *S3_PARAMS
+    config: &UPLOAD_TASK
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: mesosphere/aws-cli
+      inputs:
+      - name: report
+      run:
+        path: sh
+        args: 
+        - -c
+        - |
+          set -e
+          cd report
+          aws --endpoint-url ${ENDPOINT_URL} s3 cp --recursive ./ s3://${S3_BUCKET}/
 - name: perf-test2
   plan:
-  - get: 10s
+  - get: timer
     passed:
     - prepare
     trigger: true
   - task: run-vegeta
     params:
       <<: *PERF_PARAMS
+      JOB_ID: 2
     config:
       <<: *PERF_TASK
+  - task: upload-report
+    params:
+      <<: *S3_PARAMS
+    config:
+      <<: *UPLOAD_TASK
 - name: perf-test3
   plan:
-  - get: 10s
+  - get: timer
     passed:
     - prepare
     trigger: true
   - task: run-vegeta
     params:
       <<: *PERF_PARAMS
+      JOB_ID: 3
     config:
       <<: *PERF_TASK
+  - task: upload-report
+    params:
+      <<: *S3_PARAMS
+    config:
+      <<: *UPLOAD_TASK
 - name: perf-test4
   plan:
-  - get: 10s
+  - get: timer
     passed:
     - prepare
     trigger: true
   - task: run-vegeta
     params:
       <<: *PERF_PARAMS
+      JOB_ID: 4
     config:
       <<: *PERF_TASK
+  - task: upload-report
+    params:
+      <<: *S3_PARAMS
+    config:
+      <<: *UPLOAD_TASK
 - name: perf-test5
   plan:
-  - get: 10s
+  - get: timer
     passed:
     - prepare
     trigger: true
   - task: run-vegeta
     params:
       <<: *PERF_PARAMS
+      JOB_ID: 5
     config:
       <<: *PERF_TASK
-- name: perf-test6
+  - task: upload-report
+    params:
+      <<: *S3_PARAMS
+    config:
+      <<: *UPLOAD_TASK
+- name: aggregate-report
   plan:
-  - get: 10s
+  - get: timer
     passed:
-    - prepare
+    - perf-test1
+    - perf-test2
+    - perf-test3
+    - perf-test4
+    - perf-test5
     trigger: true
-  - task: run-vegeta
+  - task: download-report
     params:
-      <<: *PERF_PARAMS
+      <<: *S3_PARAMS
     config:
-      <<: *PERF_TASK
-- name: perf-test7
-  plan:
-  - get: 10s
-    passed:
-    - prepare
-    trigger: true
-  - task: run-vegeta
-    params:
-      <<: *PERF_PARAMS
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: mesosphere/aws-cli
+      inputs:
+      - name: timer
+      outputs:
+      - name: report
+      run:
+        path: sh
+        args: 
+        - -c
+        - |
+          set -e
+          VERSION=`md5sum timer/input | awk '{print $1}'`
+          aws --endpoint-url ${ENDPOINT_URL} s3 cp --recursive s3://${S3_BUCKET}/${VERSION} ./
+          mv *.bin ./report/
+  - task: show-report
     config:
-      <<: *PERF_TASK
-- name: perf-test8
-  plan:
-  - get: 10s
-    passed:
-    - prepare
-    trigger: true
-  - task: run-vegeta
-    params:
-      <<: *PERF_PARAMS
-    config:
-      <<: *PERF_TASK
-- name: perf-test9
-  plan:
-  - get: 10s
-    passed:
-    - prepare
-    trigger: true
-  - task: run-vegeta
-    params:
-      <<: *PERF_PARAMS
-    config:
-      <<: *PERF_TASK
-- name: perf-test10
-  plan:
-  - get: 10s
-    passed:
-    - prepare
-    trigger: true
-  - task: run-vegeta
-    params:
-      <<: *PERF_PARAMS
-    config:
-      <<: *PERF_TASK
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: oba11/vegeta
+      inputs:
+      - name: report
+      run:
+        path: sh
+        args: 
+        - -c
+        - |
+          set -e
+          cd report
+          vegeta report -inputs="$(ls -1 | xargs | sed -e 's/ /,/g')"
+perf_params: &PERF_PARAMS
+  URL: https://blog.ik.am
+s3_prams: &S3_PARAMS
+  ENDPOINT_URL: ((endpoint_url))
+  AWS_DEFAULT_REGION: ((region))
+  AWS_ACCESS_KEY_ID: ((aws_access_key_id))
+  AWS_SECRET_ACCESS_KEY: ((aws_secret_access_key))
+  S3_BUCKET: ((s3_bucket))
