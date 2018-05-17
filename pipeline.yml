@@ -193,7 +193,7 @@ jobs:
           cd report
           vegeta report -inputs="$(ls -1 | xargs | sed -e 's/ /,/g')"
 perf_params: &PERF_PARAMS
-  URL: https://blog.ik.am
+  URL: https://demo-micrometer.cfapps.io/hello
 s3_prams: &S3_PARAMS
   ENDPOINT_URL: ((endpoint_url))
   AWS_DEFAULT_REGION: ((region))
