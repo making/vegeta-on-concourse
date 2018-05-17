@@ -1,0 +1,130 @@
+resources:
+- name: 10s
+  type: time
+  source:
+    interval: 10s
+jobs:
+- name: prepare
+  plan:
+  - get: 10s
+- name: perf-test1
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params: &PERF_PARAMS
+      URL: https://demo-micrometer.cfapps.io/hello
+    config: &PERF_TASK
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: oba11/vegeta
+      run:
+        path: sh
+        args: 
+        - -c
+        - |
+          set -e
+          echo "GET ${URL}" | vegeta attack -duration=10s | tee results.bin | vegeta report
+- name: perf-test2
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test3
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test4
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test5
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test6
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test7
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test8
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test9
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
+- name: perf-test10
+  plan:
+  - get: 10s
+    passed:
+    - prepare
+    trigger: true
+  - task: run-vegeta
+    params:
+      <<: *PERF_PARAMS
+    config:
+      <<: *PERF_TASK
